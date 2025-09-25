@@ -6,6 +6,7 @@ import { RawData, WebSocket } from "ws";
 import dotenv from "dotenv";
 import { RuntimePlayer } from "./types";
 import { GameManager } from "./src/GameManager";
+import cors from "cors";
 
 dotenv.config({ path: `.env` });
 
@@ -13,6 +14,10 @@ const app = expressWs(express()).app;
 const httpServer = createServer(app);
 const gameManager = new GameManager(); 
 
+app.use(cors({
+  origin: ['http://localhost:8000', 'https://thuanduong.github.io'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
