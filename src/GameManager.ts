@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { RawData, WebSocket } from 'ws';
 import { Player, RuntimePlayer, Room } from "../types";
 
-const MIN_PLAYERS_TO_START = 4;
+const MIN_PLAYERS_TO_START = 1;
 const MIN_PLAYERS_READY = 1;
 
 const WAIT_JOIN_ROOM_DURATION = 60000;
@@ -108,6 +108,8 @@ export class GameManager {
                 this.checkAllPlayersReady(room);
             }
         }
+        else 
+            console.log(`Player ${playerId} is not in any room.`);
     }
 
     private handleFinish(playerId: string) {
