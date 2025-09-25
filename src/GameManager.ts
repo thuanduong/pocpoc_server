@@ -55,7 +55,7 @@ export class GameManager {
     private checkMatchmakingQueue() {
         if (this.matchmakingQueue.length >= MIN_PLAYERS_TO_START) {
             const playersToMatch = this.matchmakingQueue.splice(0, MIN_PLAYERS_TO_START);
-            const validPlayers = playersToMatch.filter(p => p.ws.readyState === WebSocket.OPEN);
+            const validPlayers = playersToMatch.filter(p => p.ws.readyState === 1);
 
             if (validPlayers.length < MIN_PLAYERS_TO_START) {
                 console.warn(`Not enough valid players. Found: ${validPlayers.length}. Pushing back to queue.`);
@@ -79,7 +79,7 @@ export class GameManager {
             const playersData = validPlayers.map(p => p.player);
             let index = 0;
             validPlayers.forEach(p => {
-                if (p.ws.readyState === WebSocket.OPEN) {
+                if (p.ws.readyState === 1) {
                     p.ws.send(JSON.stringify({
                         type: "normal",
                         cmd: "matchFound",
@@ -145,7 +145,7 @@ export class GameManager {
         room.countdownEndTime = utcEndTimeStampInSeconds;
 
         room.players.forEach(player => {
-            if (player.ws.readyState === WebSocket.OPEN) {
+            if (player.ws.readyState === 1) {
                 player.raceStartTime = raceStartTime;
                 player.ws.send(JSON.stringify({
                     type: "normal",
@@ -170,7 +170,7 @@ export class GameManager {
         const playerRank = currentRankedPlayers.findIndex(p => p.player.id === justFinishedPlayer.player.id) + 1;
 
         room.players.forEach(p => {
-            if (p.ws.readyState === WebSocket.OPEN) {
+            if (p.ws.readyState === 1) {
                 p.ws.send(JSON.stringify({
                     type: "normal",
                     cmd: "racfinisheRanking",
@@ -191,7 +191,7 @@ export class GameManager {
             }));
             console.log(finalRankings);
             room.players.forEach(p => {
-                if (p.ws.readyState === WebSocket.OPEN) {
+                if (p.ws.readyState === 1) {
                     p.ws.send(JSON.stringify({
                         type: "normal",
                         cmd: "raceRanking",
@@ -210,7 +210,7 @@ export class GameManager {
             console.log(`Race in room ${roomId} timed out. Cleaning up.`);
             const finishedPlayersIds = room.finishedPlayers.map(p => p.player.id);
             room.players.forEach(p => {
-                if (p.ws.readyState === WebSocket.OPEN && !finishedPlayersIds.includes(p.player.id)) {
+                if (p.ws.readyState === 1 && !finishedPlayersIds.includes(p.player.id)) {
                     p.ws.send(JSON.stringify({
                         type: "normal",
                         cmd: "raceTimeout",
@@ -236,7 +236,7 @@ export class GameManager {
             console.log(`Timeout for room ${roomId}. Removing ${notReadyPlayers.length} not-ready players and starting countdown.`);
             
             notReadyPlayers.forEach(p => {
-                if (p.ws.readyState === WebSocket.OPEN) {
+                if (p.ws.readyState === 1) {
                     p.ws.close(1000, "Timeout: Did not ready up in time.");
                 }
             });
@@ -247,7 +247,7 @@ export class GameManager {
             console.log(`Room ${roomId} failed to start due to insufficient ready players.`);
             
             room.players.forEach(p => {
-                if (p.ws.readyState === WebSocket.OPEN) {
+                if (p.ws.readyState === 1) {
                     p.ws.send(JSON.stringify({
                         type: "normal",
                         cmd: "matchFailed",
