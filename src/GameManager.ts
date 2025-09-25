@@ -3,7 +3,9 @@ import { RawData, WebSocket } from 'ws';
 import { Player, RuntimePlayer, Room } from "../types";
 
 const MIN_PLAYERS_TO_START = 4;
-const WAIT_JOIN_ROOM_DURATION = 30000;
+const MIN_PLAYERS_READY = 1;
+
+const WAIT_JOIN_ROOM_DURATION = 60000;
 const COUNT_DOWN_DURATION = 10;
 const RACE_DURATION = 120;
 
@@ -232,8 +234,8 @@ export class GameManager {
         const readyPlayers = room.players.filter(p => p.isReady);
         const notReadyPlayers = room.players.filter(p => !p.isReady);
 
-        if (readyPlayers.length >= MIN_PLAYERS_TO_START) {
-            console.log(`Timeout for room ${roomId}. Removing ${notReadyPlayers.length} not-ready players and starting countdown.`);
+        if (readyPlayers.length >= MIN_PLAYERS_READY) { 
+            console.log(`Timeout for room ${roomId}. Found ${readyPlayers.length} ready players (min ${MIN_PLAYERS_READY}). Removing ${notReadyPlayers.length} not-ready players and starting countdown.`);
             
             notReadyPlayers.forEach(p => {
                 if (p.ws.readyState === 1) {
@@ -243,7 +245,7 @@ export class GameManager {
 
             room.players = readyPlayers;
             this.startCountdown(room);
-        } else {
+        }else {
             console.log(`Room ${roomId} failed to start due to insufficient ready players.`);
             
             room.players.forEach(p => {
