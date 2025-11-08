@@ -30,7 +30,7 @@ app.ws("/normal_match/:playerId",
             return;
         }
 
-        const player: RuntimePlayer = { player: { id: playerId }, ws: ws, isReady: false, isFinish: false };
+        const player: RuntimePlayer = { player: { id: playerId, teamId: 0, index: 0 }, ws: ws, isReady: false, isFinish: false };
         gameManager.addPlayerToQueue(player);
 
         ws.on("error", (err) => {

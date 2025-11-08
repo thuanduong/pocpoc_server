@@ -15,6 +15,7 @@ export interface Room {
     id: string;
     players: RuntimePlayer[];
     isCountdownStarted: boolean;
+	countdownStartTime?: number;
     countdownEndTime?: number;
     matchFoundTimestamp: number;
     finishedPlayers: RuntimePlayer[]; 
@@ -23,4 +24,6 @@ export interface Room {
 
 export interface Player {
     id: string;
+    teamId: number;
+	index: number;
 }

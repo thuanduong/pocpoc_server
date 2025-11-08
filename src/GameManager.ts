@@ -3,11 +3,13 @@ import { RawData, WebSocket } from 'ws';
 import { Player, RuntimePlayer, Room } from "../types";
 
 const MIN_PLAYERS_TO_START = 2;
-const MIN_PLAYERS_READY = 1;
+const MIN_PLAYERS_READY = 2;
 
 const WAIT_JOIN_ROOM_DURATION = 60000;
 const COUNT_DOWN_DURATION = 10;
 const RACE_DURATION = 120;
+const MIN_MAP_ID = 2;
+const MAX_MAP_ID = 4;
 
 export class GameManager {
     private matchmakingQueue: RuntimePlayer[] = [];
@@ -66,6 +68,8 @@ export class GameManager {
             }
 
             const roomId = uuidv4();
+            const mapId = Math.floor(Math.random() * (MAX_MAP_ID - MIN_MAP_ID + 1)) + MIN_MAP_ID;
+
             console.log(`Match found! Creating room ${roomId} for players: ${validPlayers.map(p => p.player.id).join(', ')}`);
 
             const newRoom: Room = {
@@ -79,6 +83,13 @@ export class GameManager {
             this.rooms.set(roomId, newRoom);
 
             const playersData = validPlayers.map(p => p.player);
+            
+            for (let a = 0; a < playersData.length; a++){
+                const nm = a;
+                playersData[a].teamId = nm;
+				playersData[a].index = nm;
+            }
+
             let index = 0;
             validPlayers.forEach(p => {
                 if (p.ws.readyState === 1) {
@@ -87,6 +98,7 @@ export class GameManager {
                         cmd: "matchFound",
                         code: 200,
                         roomId: roomId,
+                        mapId: mapId,
                         index: index,
                         players: playersData
                     }));
@@ -107,6 +119,8 @@ export class GameManager {
                 console.log(`Player ${playerId} is now ready in room ${room.id}.`);
                 this.checkAllPlayersReady(room);
             }
+	    else 
+		console.log(`Player ${playerId} is not in this room.`);
         }
         else 
             console.log(`Player ${playerId} is not in any room.`);
@@ -131,6 +145,8 @@ export class GameManager {
 
     private checkAllPlayersReady(room: Room) {
         if (room.isCountdownStarted) {
+			console.log(`Room ${room.id} are countdown.`);
+			this.restartCountdown(room);
             return;
         }
         const allReady = room.players.every(p => p.isReady);
@@ -147,6 +163,7 @@ export class GameManager {
         const raceStartTime = Date.now();
         const utcEndTimeStampInSeconds = this.converTimeToUTCSecond(raceStartTime) + countdownDuration;
         room.countdownEndTime = utcEndTimeStampInSeconds;
+		room.countdownStartTime = raceStartTime;
 
         room.players.forEach(player => {
             if (player.ws.readyState === 1) {
@@ -162,6 +179,21 @@ export class GameManager {
         });
 
         setTimeout(() => this.handleRaceTimeout(room.id), RACE_DURATION * 1000);
+    }
+
+    private restartCountdown(room: Room) {
+        room.players.forEach(player => {
+            if (player.ws.readyState === 1) {
+                player.raceStartTime = room.countdownStartTime;
+                player.ws.send(JSON.stringify({
+                    type: "normal",
+                    cmd: "startCountdown",
+                    code: 200,
+                    endTime: room.countdownEndTime,
+                    raceDuration: RACE_DURATION,
+                }));
+            }
+        });
     }
     
     private updateRanking(room: Room, justFinishedPlayer: RuntimePlayer) {
