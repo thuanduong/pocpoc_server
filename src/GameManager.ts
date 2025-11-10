@@ -103,6 +103,7 @@ export class GameManager {
                         players: playersData
                     }));
                     index++;
+					console.log(`index ${index}`);
                 }
             });
 
@@ -161,7 +162,8 @@ export class GameManager {
         room.isCountdownStarted = true;
         const countdownDuration = COUNT_DOWN_DURATION;
         const raceStartTime = Date.now();
-        const utcEndTimeStampInSeconds = this.converTimeToUTCSecond(raceStartTime) + countdownDuration;
+		const utcStartTime = this.converTimeToUTCSecond(raceStartTime);
+        const utcEndTimeStampInSeconds = utcStartTime + countdownDuration;
         room.countdownEndTime = utcEndTimeStampInSeconds;
 		room.countdownStartTime = raceStartTime;
 
@@ -173,6 +175,7 @@ export class GameManager {
                     cmd: "startCountdown",
                     code: 200,
                     endTime: utcEndTimeStampInSeconds,
+					startTime: utcStartTime,
                     raceDuration: RACE_DURATION,
                 }));
             }
@@ -182,6 +185,8 @@ export class GameManager {
     }
 
     private restartCountdown(room: Room) {
+		const raceStartTime = Date.now();
+		const utcStartTime = this.converTimeToUTCSecond(raceStartTime);
         room.players.forEach(player => {
             if (player.ws.readyState === 1) {
                 player.raceStartTime = room.countdownStartTime;
@@ -190,6 +195,7 @@ export class GameManager {
                     cmd: "startCountdown",
                     code: 200,
                     endTime: room.countdownEndTime,
+					startTime : utcStartTime,
                     raceDuration: RACE_DURATION,
                 }));
             }
