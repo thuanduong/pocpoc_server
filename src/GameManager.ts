@@ -12,10 +12,16 @@ const MIN_MAP_ID = 2;
 const MAX_MAP_ID = 4;
 
 export class GameManager {
+	private onlinePlayers: RuntimePlayer[] = [];
     private matchmakingQueue: RuntimePlayer[] = [];
     private activeWebsockets = new Map<string, WebSocket>();
     private rooms = new Map<string, Room>();
 
+	public addNewPlayer(player: RuntimePlayer) {
+		this.onlinePlayers.push(player);
+		console.log(`Player ${player.player.id} is online. Total players: ${this.onlinePlayers.length}`);
+	}
+	
     public addPlayerToQueue(player: RuntimePlayer) {
         this.matchmakingQueue.push(player);
         console.log(`Player ${player.player.id} added to queue. Current queue size: ${this.matchmakingQueue.length}`);
@@ -27,19 +33,47 @@ export class GameManager {
         }));
         this.checkMatchmakingQueue();
     }
+	
+	public removePlayerFromQueue(playerId: string) {
+        const playerIndex = this.matchmakingQueue.findIndex(p => p.player.id === playerId);
+        if (playerIndex > -1) {
+            this.matchmakingQueue.splice(playerIndex, 1);
+        }
+		const player = this.findPlayerByID(playerId);
+		if (player) {
+			player.ws.send(JSON.stringify({
+				type: "normal",
+				cmd: "out_queue",
+				code: 202,
+				message: "You have been removed from the matchmaking queue."
+			}));
+			console.log(`Player ${player.player.id} removed from queue. Current queue size: ${this.matchmakingQueue.length}`);
+		}
+    }
 
     public handlePlayerMessage(playerId: string, data: RawData) {
         try {
             const message = JSON.parse(data.toString());
-            console.log(`Message from ${playerId}:`, message);
+            //console.log(`Message from ${playerId}:`, message);
 
             switch (message.type) {
+				case "join_queue":
+					const mode = message.data.mode;
+					const room = message.data.room;
+					this.handleJoinQueue(playerId, mode, room);
+					break;
+				case "quit_queue":
+					this.handleQuitQueue(playerId);
+					break;
                 case "ready":
                     this.handleReady(playerId);
                     break;
                 case "finish":
                     this.handleFinish(playerId);
                     break;
+				case "ping":
+					this.handlePing(playerId, message.data);
+					break;
                 // Add other message types here
             }
         } catch (error) {
@@ -53,6 +87,11 @@ export class GameManager {
         const playerIndex = this.matchmakingQueue.findIndex(p => p.player.id === playerId);
         if (playerIndex > -1) {
             this.matchmakingQueue.splice(playerIndex, 1);
+        }
+		
+		const playerOnlineIndex = this.onlinePlayers.findIndex(p => p.player.id === playerId);
+        if (playerOnlineIndex > -1) {
+            this.onlinePlayers.splice(playerOnlineIndex, 1);
         }
     }
 
@@ -111,6 +150,18 @@ export class GameManager {
         }
     }
 
+	private handleJoinQueue(playerId: string, mode: number, room: number) {
+		const player = this.findPlayerByID(playerId);
+		if (player) {
+			this.addPlayerToQueue(player);
+		}
+	}
+	
+	private handleQuitQueue(playerId: string) {
+		this.removePlayerFromQueue(playerId);
+	}
+
+
     private handleReady(playerId: string) {
         const room = Array.from(this.rooms.values()).find(r => r.players.some(p => p.player.id === playerId));
         if (room) {
@@ -118,7 +169,15 @@ export class GameManager {
             if (player) {
                 player.isReady = true;
                 console.log(`Player ${playerId} is now ready in room ${room.id}.`);
-                this.checkAllPlayersReady(room);
+				
+				if (room.isCountdownStarted) {
+					console.log(`Room ${room.id} are countdown.`);
+					this.restartCountdown(player, room);
+				}
+                else { 
+					this.checkAllPlayersReady(room);
+				}
+				
             }
 	    else 
 		console.log(`Player ${playerId} is not in this room.`);
@@ -145,11 +204,6 @@ export class GameManager {
     }
 
     private checkAllPlayersReady(room: Room) {
-        if (room.isCountdownStarted) {
-			console.log(`Room ${room.id} are countdown.`);
-			this.restartCountdown(room);
-            return;
-        }
         const allReady = room.players.every(p => p.isReady);
         if (allReady) {
             console.log(`All players in room ${room.id} are ready. Starting countdown.`);
@@ -175,7 +229,6 @@ export class GameManager {
                     cmd: "startCountdown",
                     code: 200,
                     endTime: utcEndTimeStampInSeconds,
-					startTime: utcStartTime,
                     raceDuration: RACE_DURATION,
                 }));
             }
@@ -184,22 +237,20 @@ export class GameManager {
         setTimeout(() => this.handleRaceTimeout(room.id), RACE_DURATION * 1000);
     }
 
-    private restartCountdown(room: Room) {
+    private restartCountdown(player: RuntimePlayer, room: Room) {
 		const raceStartTime = Date.now();
-		const utcStartTime = this.converTimeToUTCSecond(raceStartTime);
-        room.players.forEach(player => {
-            if (player.ws.readyState === 1) {
+        if (player) {
+			if (player.ws.readyState === 1) {
                 player.raceStartTime = room.countdownStartTime;
                 player.ws.send(JSON.stringify({
                     type: "normal",
                     cmd: "startCountdown",
                     code: 200,
                     endTime: room.countdownEndTime,
-					startTime : utcStartTime,
                     raceDuration: RACE_DURATION,
                 }));
             }
-        });
+		}
     }
     
     private updateRanking(room: Room, justFinishedPlayer: RuntimePlayer) {
@@ -215,7 +266,7 @@ export class GameManager {
             if (p.ws.readyState === 1) {
                 p.ws.send(JSON.stringify({
                     type: "normal",
-                    cmd: "racfinisheRanking",
+                    cmd: "racefinishRanking",
                     code: 200,
                     rank: playerRank,
                     playerId: justFinishedPlayer.player.id,
@@ -305,4 +356,25 @@ export class GameManager {
     private converTimeToUTCSecond(time: number) {
         return Math.floor(time / 1000);
     }
+
+	private handlePing(playerId: string, pingMessage: any) {
+        const player = this.findPlayerByID(playerId);
+		if (player) {
+			const serverTime = Date.now();
+			const pongMessage = {
+				type: "pong",
+				serverTime: serverTime,
+				clientSendTime: pingMessage.clientSendTime 
+			};
+
+			if (player.ws.readyState === player.ws.OPEN) {
+				player.ws.send(JSON.stringify(pongMessage));
+			}
+		}
+		
+	}
+
+	private findPlayerByID(playerId: string) {
+		return this.onlinePlayers.find(p => p.player.id === playerId);
+	}
 }

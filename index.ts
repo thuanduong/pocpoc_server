@@ -31,7 +31,8 @@ app.ws("/normal_match/:playerId",
         }
 
         const player: RuntimePlayer = { player: { id: playerId, teamId: 0, index: 0 }, ws: ws, isReady: false, isFinish: false };
-        gameManager.addPlayerToQueue(player);
+        gameManager.addNewPlayer(player);
+		
 
         ws.on("error", (err) => {
             console.error("Error received from player client: ", err);
@@ -42,9 +43,10 @@ app.ws("/normal_match/:playerId",
         });
 
         ws.on("message", (data: RawData, isBinary: boolean) => {
-            if (isBinary) {
+            //console.log(data);
+			if (isBinary) {
                 console.error("Got binary message ");
-                ws.close(1007, "Cannot find corresponding");
+                //ws.close(1007, "Cannot find corresponding");
                 return;
             }
             gameManager.handlePlayerMessage(playerId, data);
